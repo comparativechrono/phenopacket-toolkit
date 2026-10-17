@@ -27,6 +27,18 @@ in relationships, parents' sexes, loops of ancestry), all at once.
   score results by their rank (100, 96, 92 …), so the first always looked
   like an exact match. Results are now scored by how closely their label
   matches the name, so the threshold means what it says.
+- `normalise` accepts only exact matches unless told otherwise: a looked-up
+  term is filled in only if the name is its label or one of its synonyms,
+  ignoring case and punctuation. The default `--threshold` is now 0.98. At
+  0.9 it let through names spelt almost alike that mean something else:
+  "Maternal hypothyroidism" was filled with HP:0034778 *Maternal
+  hyperthyroidism*, which hponorm 1.0 scores 93.6 for it, and "Essential
+  hypotension" with MONDO:0001134 *essential hypertension*, which mondonorm
+  1.0 scores 93. A lower threshold still accepts close names, but they are
+  guesses for a person to check, and the decision log now lists each one.
+  With hponorm and mondonorm 1.0, whose local search can score a long name
+  with one character changed as highly as an exact match, a result counts as
+  exact only if the name is its label or the synonym it was found by.
 - `normalise` records the release of each ontology used (from an OBO file,
   OLS, or a terms file whose entries carry a `version`), and moves a term to
   where its ontology belongs: an HPO term written as a disease becomes a

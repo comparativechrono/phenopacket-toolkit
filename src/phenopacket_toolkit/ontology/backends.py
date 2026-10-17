@@ -7,12 +7,16 @@ This adapter therefore:
   * imports ``Suggester`` / index / ``OlsClient`` from the correct submodules,
   * builds a ``Suggester`` following each package's own ``build_suggester`` logic
     (auto -> OLS if reachable else local; local -> Index.load; ols -> OlsClient),
-  * rescales scores to 0-1 so our AutoAcceptPolicy threshold (e.g. 0.9) is
-    interpretable as "90% match or better",
-  * and scores EBI's Ontology Lookup Service's results by how closely their
-    labels match the name: hponorm's and mondonorm's OLS clients score them by
-    rank (100, 96, 92 ...), which would make the first result look like an
-    exact match whatever it was.
+  * rescales scores to 0-1 for our AutoAcceptPolicy, whose default threshold,
+    0.98, only the term's label (1.0) or one of its synonyms (0.98) reaches,
+  * scores the results of EBI's Ontology Lookup Service from hponorm and
+    mondonorm 1.0 by how closely their labels match the name: those versions'
+    OLS clients score them by rank (100, 96, 92 ...), which would make the
+    first result look like an exact match whatever it was,
+  * and gives a name that is not the term's label or synonym at most 0.97,
+    which 1.0's local search does not: it scores a long name with a letter or
+    two changed (another subtype's number, say) as high as an exact one.
+    Version 1.1 scores names this way itself.
 
 We never invoke their interactive CLI.
 """
@@ -66,21 +70,53 @@ def _words(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", (text or "").casefold()))
 
 
+#: The most a name that is not one of the term's own names is given, so that the default threshold (0.98) accepts
+#: only exact matches whichever version of hponorm or mondonorm gave the result.
+NOT_EXACT = 0.97
+
+
 def similarity(name: str, label: str) -> float:
-    """How closely a term's label matches a name, from 0 to 1 (1: the same words, whatever the case and punctuation)."""
+    """How closely a term's label matches a name, from 0 to 1.
+
+    1 means the same words, whatever the case and punctuation. Otherwise it is
+    how alike the two are letter by letter, but never more than 0.97: two long
+    names a character apart, such as two subtypes numbered 1 and 2, are more
+    than 0.98 alike letter by letter and are still different terms.
+    """
     a, b = _words(name), _words(label)
     if not a or not b:
         return 0.0
     if a == b:
         return 1.0
-    return round(difflib.SequenceMatcher(None, a, b).ratio(), 3)
+    return min(NOT_EXACT, round(difflib.SequenceMatcher(None, a, b).ratio(), 3))
+
+
+def names_the_term(name: str, candidate) -> bool:
+    """Whether ``name`` is the candidate's label, or the synonym it was found by, ignoring case and punctuation."""
+    words = _words(name)
+    if not words:
+        return False
+    texts = [getattr(candidate, "label", "") or ""]
+    matched = getattr(candidate, "matched_on", "") or ""
+    if matched.startswith("synonym:"):
+        texts.append(matched[len("synonym:"):])
+    return any(_words(text) == words for text in texts)
 
 
 class _SuggesterBackend:
-    def __init__(self, suggester, name: str = "", version: str = ""):
+    """A hponorm or mondonorm ``Suggester``, with its scores rescaled to 0-1.
+
+    ``exact_scores`` says that the package itself keeps its scores of 98 and
+    more for the term's own names, as hponorm and mondonorm 1.1 do. Otherwise
+    (1.0, or a suggester of unknown kind) a result scored that high is given
+    0.97 unless the name is its label or the synonym it was found by.
+    """
+
+    def __init__(self, suggester, name: str = "", version: str = "", *, exact_scores: bool = False):
         self._s = suggester
         self.name = name or getattr(suggester, "name", "backend")
         self.version = version
+        self.exact_scores = exact_scores
         self.last_error: Optional[str] = None
 
     def suggest(self, label: str, limit: int = 8) -> List[Candidate]:
@@ -96,6 +132,9 @@ class _SuggesterBackend:
                 # hponorm/mondonorm Candidate.score is on a 0-100 scale; rescale to
                 # 0-1 so AutoAcceptPolicy thresholds read as "fraction matched".
                 score = float(getattr(c, "score", 0.0)) / 100.0
+                if score > NOT_EXACT and not self.exact_scores and not names_the_term(label, c):
+                    # 1.0 scores a long name with a letter changed as high as the term's own
+                    score = NOT_EXACT
             out.append(Candidate(id=getattr(c, "id", ""),
                                  label=getattr(c, "label", ""),
                                  score=score))
@@ -126,23 +165,27 @@ def _build(module_name: str, index_attr_module: str, index_cls: str,
     Index = getattr(idx_mod, index_cls)
 
     onto = "hp" if module_name == "hponorm" else "mondo"
+    # hponorm and mondonorm 1.1 score every result with best_match, which keeps 98 and more for exact matches
+    exact = hasattr(suggest_mod, "best_match")
     if backend == "ols":
         client = OlsClient()
-        return _SuggesterBackend(Suggester(client, name="ols"), "ols", ols_version(client, onto))
+        return _SuggesterBackend(Suggester(client, name="ols"), "ols", ols_version(client, onto), exact_scores=exact)
 
     if backend == "local" or local_file:
         idx = Index.load(local_file) if local_file else Index.load()
-        return _SuggesterBackend(Suggester(idx, name="local"), "local", obo_version(getattr(idx, "source", None)))
+        return _SuggesterBackend(Suggester(idx, name="local"), "local", obo_version(getattr(idx, "source", None)),
+                                 exact_scores=exact)
 
     # auto: prefer OLS when reachable, else fall back to a local index
     ols = OlsClient()
     try:
         if ols.available():
-            return _SuggesterBackend(Suggester(ols, name="ols"), "ols", ols_version(ols, onto))
+            return _SuggesterBackend(Suggester(ols, name="ols"), "ols", ols_version(ols, onto), exact_scores=exact)
     except Exception:
         pass
     idx = Index.load()       # may download/cache; raises offline with no cache
-    return _SuggesterBackend(Suggester(idx, name="local"), "local", obo_version(getattr(idx, "source", None)))
+    return _SuggesterBackend(Suggester(idx, name="local"), "local", obo_version(getattr(idx, "source", None)),
+                             exact_scores=exact)
 
 
 def hpo_backend(*, backend: str = "auto", hpo_file: Optional[str] = None) -> _SuggesterBackend:

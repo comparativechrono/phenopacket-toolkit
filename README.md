@@ -19,8 +19,8 @@ also use, so all of them agree on a single, standard form.
 - **Small core.** Everything except ontology look-ups needs only pedigree-ga4gh,
   which itself needs nothing beyond the standard library.
 - **No guessing.** Ontology ids are only ever filled in by `normalise`, from a
-  mapping you give it or a look-up that clears a similarity threshold, and every
-  decision is logged.
+  mapping you give it or a look-up that finds the name as a term's label or
+  synonym, and every decision is logged.
 
 ## Install
 
@@ -148,13 +148,31 @@ the filters did not take out.
 `normalise` fills empty term ids in this order: an explicit `--mapping` (label
 -> CURIE, matched without regard to case) always wins; the rest are looked up
 with `hponorm` (phenotypes) and `mondonorm` (diseases) when the `[normalise]`
-extra is installed. A looked-up term is accepted only if its label or a
-synonym is close enough to the name: the score is a similarity between 0 and
-1, and `--threshold` (default 0.9) is the minimum. Anything else is left empty
-and recorded in the decision log. The structure step then puts each term where
-it belongs (an HPO term among the phenotypic features, a Mondo, OMIM or
-Orphanet term among the diseases), removes duplicates, and declares every
-ontology in use in `metaData.resources`, with its release when it is known.
+extra is installed. By default a term they find is accepted only if the name is
+its label or one of its synonyms, ignoring case and punctuation. Their scores,
+from 0 to 100, are divided by 100: the label scores 1, a synonym 0.98 and
+anything else at most 0.97, so `--threshold` (the lowest score accepted,
+by default 0.98) admits only the term's own names. Anything else is left empty
+and recorded in the decision log.
+
+You can lower the threshold to accept names that are only close, but each of
+those is a guess for a person to check, because names spelt almost alike can
+mean opposite things: "Maternal hypothyroidism" is not HP:0034778 *Maternal
+hyperthyroidism*, and "Essential hypotension" is not MONDO:0001134 *essential
+hypertension*, although version 1.0 of hponorm and mondonorm scores those
+pairs 93.6 and 93 out of 100. The decision log notes every term accepted
+below 0.98 and asks for it to be checked. Version 1.1 of hponorm and
+mondonorm scores names like these far lower, as it does names of a different
+type or number, but its close matches are still guesses. Version 1.0 does not
+keep its highest scores for exact matches, so with 1.0 a result counts as
+exact only if the name is its label or the synonym it was found by; its
+results from OLS come without their synonyms, so for those only the label
+counts.
+
+The structure step then puts each term where it belongs (an HPO term among the
+phenotypic features, a Mondo, OMIM or Orphanet term among the diseases),
+removes duplicates, and declares every ontology in use in
+`metaData.resources`, with its release when it is known.
 
 ## Development
 

@@ -69,3 +69,9 @@ synonym: "Decreased body height" EXACT []
 synonym: "Small stature" EXACT []
 synonym: "Height less than 3rd percentile" RELATED []
 is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0034778
+name: Maternal hyperthyroidism
+def: "The mother of a fetus or index patient has a history of hyperthyroidism during the corresponding pregnancy." []
+is_a: HP:0000118 ! Phenotypic abnormality

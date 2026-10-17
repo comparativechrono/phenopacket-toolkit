@@ -16,6 +16,7 @@ from ..ops import diffing as diff
 from ..ops import normalisation as norm
 from ..ops import statistics as statsop
 from ..ops import validation as val
+from ..ontology.policy import EXACT_MATCH
 from ..report.render import render_report
 
 
@@ -363,7 +364,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("input")
     sp.add_argument("--terms-only", action="store_true")
     sp.add_argument("--structure-only", action="store_true")
-    sp.add_argument("--threshold", type=float, default=0.9)
+    sp.add_argument("--threshold", type=float, default=EXACT_MATCH, metavar="SCORE",
+                    help="the lowest score, from 0 to 1, at which a looked-up term is accepted (default: 0.98, "
+                         "which only the term's label or one of its synonyms reaches, ignoring case and "
+                         "punctuation); a term accepted below 0.98 is a guess, which a person should check")
     sp.add_argument("--backend", choices=["auto", "ols", "local"], default="auto")
     sp.add_argument("--mapping", default=None, help="label->id JSON (or a decision-log file)")
     sp.add_argument("--hpo-file", default=None); sp.add_argument("--mondo-file", default=None)

@@ -176,7 +176,8 @@ def test_command_line():
 
 def test_a_looked_up_match_must_be_close():
     """OLS scores its results by rank (100, 96 ...): normalise must score them by how well they match."""
-    from hponorm.suggest import Candidate as HpoCandidate
+    from types import SimpleNamespace
+
     from phenopacket_toolkit.ontology import backends
     from phenopacket_toolkit.ontology.policy import AutoAcceptPolicy
 
@@ -187,8 +188,8 @@ def test_a_looked_up_match_must_be_close():
             self.labels = labels
 
         def suggest(self, label, limit=8):
-            return [HpoCandidate(id="HP:{:07d}".format(i + 1), label=lab, score=round(100.0 - i * 4, 1),
-                                 matched_on="OLS relevance", source="ols") for i, lab in enumerate(self.labels)]
+            return [SimpleNamespace(id="HP:{:07d}".format(i + 1), label=lab, score=round(100.0 - i * 4, 1),
+                                    matched_on="OLS relevance", source="ols") for i, lab in enumerate(self.labels)]
 
     policy = AutoAcceptPolicy(threshold=0.9)
     be = backends._SuggesterBackend(FakeOls(["Hearing impairment", "Sensorineural hearing impairment"]), "ols")

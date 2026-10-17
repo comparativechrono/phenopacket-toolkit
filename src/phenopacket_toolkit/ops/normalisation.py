@@ -3,7 +3,11 @@
 Term filling never guesses. An explicit ``mapping`` (label -> CURIE) always wins;
 the remaining empty terms are looked up with hponorm (phenotypes) and mondonorm
 (diseases) when they are installed, and filled only when the best match clears
-``threshold``; anything else is left empty and listed in the decision log.
+``threshold``; anything else is left empty and listed in the decision log. The
+default threshold, 0.98, is cleared only by a term whose label or synonym is
+the name, ignoring case and punctuation. A term accepted at a lower threshold
+is a guess, as names spelt alike can mean opposite things, and the log says to
+check it.
 
 Tidying (``structure``) runs pedigree-ga4gh's upgrade on the document, which
 puts CURIE prefixes in their usual case, checks KIN labels, and rebuilds each
@@ -22,7 +26,7 @@ from pedigree_ga4gh.ontology import is_curie, prefix_of, tidy_curie
 
 from ..model.curie import term_is_empty
 from ..model.document import Document
-from ..ontology.policy import AutoAcceptPolicy
+from ..ontology.policy import EXACT_MATCH, AutoAcceptPolicy
 
 
 @dataclass
@@ -58,7 +62,7 @@ def _mapping_value(value) -> Tuple[str, str]:
     return tidy_curie(str(value or "")), ""
 
 
-def normalise(doc: Document, *, terms: bool = True, structure: bool = True, threshold: float = 0.9,
+def normalise(doc: Document, *, terms: bool = True, structure: bool = True, threshold: float = EXACT_MATCH,
               backend: str = "auto", mapping: Optional[Dict] = None, hpo_file: Optional[str] = None,
               mondo_file: Optional[str] = None, use_ontology: bool = True,
               versions: Optional[Dict[str, str]] = None) -> Tuple[Document, DecisionLog]:
@@ -142,6 +146,9 @@ def _fill_terms(doc, mapping, threshold, backend, hpo_file, mondo_file, use_onto
                     if chosen:
                         ref.set(tidy_curie(chosen.id), chosen.label or ref.label)
                         log.resolved[label] = ref.id
+                        if chosen.score < EXACT_MATCH:
+                            log.notes.append("{!r} filled with {} {!r}, a close match ({:.2f}) rather than an exact "
+                                             "one: check it".format(label, ref.id, chosen.label, chosen.score))
                         continue
             log.unresolved.append(label)
     for prefix in {prefix_of(v) for v in log.resolved.values()}:

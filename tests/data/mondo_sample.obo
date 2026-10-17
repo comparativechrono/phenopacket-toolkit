@@ -1,6 +1,6 @@
 format-version: 1.2
 ontology: mondo-sample
-remark: A tiny sample for the tests, NOT the ontology. The three terms, their
+remark: A tiny sample for the tests, NOT the ontology. The four terms, their
 remark: names, exact synonyms and ids are copied from Mondo (release 2026-10-06,
 remark: https://mondo.monarchinitiative.org, CC BY 4.0); their places in the
 remark: hierarchy are simplified.
@@ -23,4 +23,11 @@ id: MONDO:0011382
 name: sickle cell disease
 synonym: "sickle cell anemia" EXACT []
 synonym: "sickling disorder due to Hemoglobin S" EXACT []
+is_a: MONDO:0000001 ! disease
+
+[Term]
+id: MONDO:0001134
+name: essential hypertension
+synonym: "idiopathic hypertension" EXACT []
+synonym: "primary hypertension" EXACT []
 is_a: MONDO:0000001 ! disease
