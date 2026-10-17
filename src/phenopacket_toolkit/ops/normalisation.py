@@ -136,6 +136,8 @@ def _fill_terms(doc, mapping, threshold, backend, hpo_file, mondo_file, use_onto
                     except Exception as exc:  # noqa: BLE001
                         cands = []
                         log.notes.append("look-up failed for {!r}: {}".format(label, exc))
+                    if not cands and getattr(be, "last_error", None):
+                        log.notes.append("look-up for {!r} got no answer: {}".format(label, be.last_error))
                     chosen = policy.choose(cands)
                     if chosen:
                         ref.set(tidy_curie(chosen.id), chosen.label or ref.label)

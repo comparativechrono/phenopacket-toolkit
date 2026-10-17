@@ -50,6 +50,14 @@ in relationships, parents' sexes, loops of ancestry), all at once.
   proband's id whoever it was added to, wrote a diagnosis without a disease
   when `--diagnosis` was left out (now refused, since a diagnosis needs one),
   and gave a zygosity given as a GENO id no label. All four are fixed.
+- `filter --include-descendants` would have downloaded the whole of Mondo
+  (or the HPO) once hponorm and mondonorm 1.1 are installed: it tried their
+  ontology index, which version 1.0 did not make available and which, given
+  no file, downloads the ontology. It now uses an index only if it can list a
+  term's descendants (neither can yet) and never downloads one.
+- With hponorm and mondonorm 1.1, a name that OLS gave no answer for is noted
+  in `normalise`'s decision log as such, instead of looking like a name with no
+  match.
 
 **Also:** 0.3's `--dialect`, `--to-dialect`, and `validate --level` and
 `--online`, are still accepted so that old commands run, and are ignored with

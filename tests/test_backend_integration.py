@@ -57,3 +57,22 @@ def test_score_scaling_applies_threshold():
     out2, log2 = normalise(doc, backend="local", hpo_file=HPO, mondo_file=MONDO,
                            threshold=0.9, structure=False)
     assert log2.resolved.get("diabetes") == "MONDO:0005015"
+
+
+def test_a_look_up_that_gets_no_answer_is_noted(monkeypatch):
+    """hponorm and mondonorm 1.1 say when OLS did not answer; normalise passes that on."""
+    from phenopacket_toolkit.ontology import backends
+
+    class Silent:
+        name = "ols"
+        last_error = "OLS did not answer (timed out)"
+
+        def suggest(self, label, limit=8):
+            return []
+
+    monkeypatch.setattr(backends, "mondo_backend", lambda **kw: backends._SuggesterBackend(Silent(), "ols"))
+    monkeypatch.setattr(backends, "hpo_backend", lambda **kw: backends._SuggesterBackend(Silent(), "ols"))
+    doc = read(os.path.join(DATA, "fam1_family.json"))
+    _, log = normalise(doc, backend="ols")
+    assert any("got no answer: OLS did not answer" in n for n in log.notes)
+    assert log.unresolved

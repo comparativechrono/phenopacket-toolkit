@@ -15,6 +15,8 @@ a descendant API, but nothing depends on that.
 """
 from __future__ import annotations
 
+import importlib
+
 from typing import Callable, Dict, Iterable, Optional, Set
 
 from ..model.curie import normalise_prefix
@@ -115,21 +117,31 @@ class _IndexResolver:
         return set()
 
 
+_HIERARCHY = ("descendants", "subclasses", "children")
+
+
 def _try_index(module_name: str, index_cls: str, local_file: Optional[str]):
+    """hponorm's or mondonorm's index, if it can say what a term's descendants are.
+
+    Neither can yet: up to version 1.1 they look terms up by name only, so
+    this gives ``None`` and an OBO file or OLS is used instead. It never
+    downloads an ontology: only a file that was given, or one already in the
+    package's cache, is read. (hponorm and mondonorm 1.0 had no top-level
+    index, so this did nothing; from 1.1 they have, and loading one without a
+    file would download the whole ontology.)
+    """
     try:
-        module = __import__(module_name)
+        module = importlib.import_module(module_name)
     except ImportError:
         return None
     Index = getattr(module, index_cls, None)
-    if Index is None:
+    if Index is None or not any(callable(getattr(Index, m, None)) for m in _HIERARCHY):
         return None
     try:
-        idx = Index.load(local_file) if local_file else Index.load()
+        idx = Index.load(local_file, allow_download=False)
     except Exception:
         return None
-    res = _IndexResolver(idx)
-    # only useful if the index actually exposes a hierarchy
-    return res if res.descendants("HP:0000001") is not None else None
+    return _IndexResolver(idx)
 
 
 # -- factory --------------------------------------------------------------

@@ -81,10 +81,14 @@ class _SuggesterBackend:
         self._s = suggester
         self.name = name or getattr(suggester, "name", "backend")
         self.version = version
+        self.last_error: Optional[str] = None
 
     def suggest(self, label: str, limit: int = 8) -> List[Candidate]:
         out: List[Candidate] = []
-        for c in self._s.suggest(label, limit=limit):
+        found = self._s.suggest(label, limit=limit)
+        # hponorm and mondonorm 1.1 say when OLS did not answer, rather than giving no suggestions
+        self.last_error = getattr(self._s, "last_error", None) or None
+        for c in found:
             if getattr(c, "matched_on", "") == "OLS relevance":
                 # OLS's results come scored by their rank, not by how well they match: score the label instead
                 score = similarity(label, getattr(c, "label", ""))

@@ -31,6 +31,24 @@ def _doc_with_term(curie):
     return doc
 
 
+def test_make_resolver_never_downloads_an_ontology(monkeypatch):
+    """hponorm and mondonorm 1.1 have a top-level index whose load() downloads the ontology when no file is
+    given. Their indexes cannot list descendants, so make_resolver must not load them at all."""
+    import sys
+    import types
+
+    def load(*args, **kwargs):
+        raise AssertionError("an ontology index was loaded")
+
+    for name, cls in (("hponorm", "HpoIndex"), ("mondonorm", "MondoIndex")):
+        fake = types.ModuleType(name)
+        setattr(fake, cls, type(cls, (), {"load": staticmethod(load), "search": lambda self, q: []}))
+        monkeypatch.setitem(sys.modules, name, fake)
+    resolve = make_resolver(backend="obo", hpo_file=OBO)
+    assert "HP:0001657" in resolve("HP:0001626")
+    assert resolve("MONDO:0005015") == set()
+
+
 def test_filter_include_descendants_keeps_child():
     doc = _doc_with_term("HP:0001657")
     resolve = make_resolver(backend="obo", hpo_file=OBO)
