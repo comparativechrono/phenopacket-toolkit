@@ -6,7 +6,7 @@ from phenopacket_toolkit.ops import add, filter_document, normalise, stats, vali
 from phenopacket_toolkit.ontology.hierarchy import OboDescendantResolver, make_resolver
 
 DATA = os.path.join(os.path.dirname(__file__), "data")
-ABUSUA = os.path.join(DATA, "FAM1_family.json")
+FAM1 = os.path.join(DATA, "fam1_family.json")      # a small family whose conditions still need terms
 OBO = os.path.join(DATA, "mini_hp.obo")
 
 
@@ -25,7 +25,7 @@ def test_make_resolver_routes_by_prefix():
 
 
 def _doc_with_term(curie):
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     # set one proband feature to a concrete child term
     doc.proband().raw["phenotypicFeatures"] = [{"type": {"id": curie, "label": "x"}}]
     return doc
@@ -49,7 +49,7 @@ def test_filter_without_descendants_drops_child():
 
 # -- add / annotate -------------------------------------------------------
 def test_add_phenotype_with_onset_and_severity():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("proband", phenotypes=[{
         "id_": "HP:0001657", "label": "Prolonged QT interval",
         "onset": "P10Y", "severity": "HP:0012828", "severity_label": "Severe"}])
@@ -61,7 +61,7 @@ def test_add_phenotype_with_onset_and_severity():
 
 
 def test_add_disease_with_ontology_onset():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("proband", diseases=[{
         "id_": "MONDO:0005015", "label": "diabetes mellitus",
         "onset": "HP:0003577", "onset_label": "Congenital onset"}])
@@ -70,7 +70,7 @@ def test_add_disease_with_ontology_onset():
 
 
 def test_add_vital_status_deceased():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("proband", vital_status=__import__(
         "phenopacket_toolkit.model.builders", fromlist=["vital_status"]).vital_status(
         "DECEASED", cause="MONDO:0011382", cause_label="sickle cell disease",
@@ -82,7 +82,7 @@ def test_add_vital_status_deceased():
 
 
 def test_add_subject_demographics():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("proband", subject_fields={"karyotypicSex": "XY",
                                              "dateOfBirth": "1990-01-01T00:00:00Z"})
     subj = out.proband().subject.raw
@@ -92,7 +92,7 @@ def test_add_subject_demographics():
 
 def test_add_variant_interpretation():
     from phenopacket_toolkit.model import builders as B
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     var = B.variation_descriptor(gene_id="HGNC:6294", gene_symbol="KCNQ1",
                                  hgvs="NM_000218.3:c.569G>A", zygosity="heterozygous")
     interp = B.interpretation(disease_id="MONDO:0011382", disease_label="sickle cell disease",
@@ -107,7 +107,7 @@ def test_add_variant_interpretation():
 
 
 def test_add_targets_all_and_affected():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out_all = doc.add("all", subject_fields={"karyotypicSex": "XX"})
     assert all(pp.subject.raw.get("karyotypicSex") == "XX" for pp in out_all.phenopackets())
 
@@ -119,7 +119,7 @@ def test_add_targets_all_and_affected():
 
 
 def test_add_target_by_subject_id():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("i5", subject_fields={"karyotypicSex": "XY"})
     hit = [pp for pp in out.phenopackets() if pp.subject.id == "i5"][0]
     assert hit.subject.raw["karyotypicSex"] == "XY"
@@ -128,7 +128,7 @@ def test_add_target_by_subject_id():
 
 
 def test_add_generic_set_merge_append_and_patch():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     out = doc.add("proband",
                   set_paths=[("subject.taxonomy", {"id": "NCBITaxon:9606", "label": "Homo sapiens"})],
                   append_paths=[("phenotypicFeatures", {"type": {"id": "HP:0000001", "label": "All"}})],
@@ -140,7 +140,7 @@ def test_add_generic_set_merge_append_and_patch():
 
 
 def test_add_unknown_target_raises():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     try:
         doc.add("nobody", subject_fields={"karyotypicSex": "XY"})
         assert False, "expected ValueError"
@@ -150,7 +150,7 @@ def test_add_unknown_target_raises():
 
 def test_normalise_rebuilds_resources_for_added_genomic_terms():
     from phenopacket_toolkit.model import builders as B
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     var = B.variation_descriptor(gene_id="HGNC:6294", gene_symbol="KCNQ1",
                                  zygosity="heterozygous")
     interp = B.interpretation(disease_id="MONDO:0011382", subject_id=doc.proband().subject.id,
@@ -166,19 +166,22 @@ def test_normalise_rebuilds_resources_for_added_genomic_terms():
 
 
 def test_normalise_always_explains_itself():
-    # The core guarantee: a default run is never a silent no-op. It always emits
-    # an explanatory note, and every empty term is accounted for as resolved or
-    # unresolved -- regardless of whether a backend is installed or reachable.
-    doc = read(ABUSUA)
-    _, log = normalise(doc, terms=True, structure=False)   # backend=auto, online
+    # The core guarantee: a run is never a silent no-op. It always emits an
+    # explanatory note, and every empty term is accounted for as resolved or
+    # unresolved -- whether or not a backend is installed. (Offline, so that the
+    # tests never contact EBI's Ontology Lookup Service.)
+    doc = read(FAM1)
+    _, log = normalise(doc, terms=True, structure=False, backend="local",
+                       hpo_file=os.path.join(DATA, "hpo_sample.obo"),
+                       mondo_file=os.path.join(DATA, "mondo_sample.obo"))
     assert log.notes, "normalise must report what it did"
     accounted = set(log.resolved) | set(log.unresolved)
-    assert "diabetes" in accounted and "sickle cell" in accounted
+    assert "diabetes" in accounted and "sickle cell anemia" in accounted
 
 
 def test_normalise_no_online_notes_mapping_only():
-    doc = read(ABUSUA)
+    doc = read(FAM1)
     _, log = normalise(doc, terms=True, structure=False, use_ontology=False,
                        mapping={"diabetes": "MONDO:0005015"})
     assert log.resolved == {"diabetes": "MONDO:0005015"}
-    assert any("mapping-only" in n for n in log.notes)
+    assert any("mapping only" in n for n in log.notes)

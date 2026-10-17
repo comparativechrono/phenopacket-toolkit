@@ -1,65 +1,76 @@
 # phenopacket-toolkit (`phenotk`)
 
-A **samtools/bedtools-style** command-line toolkit and Python library for working
-with [GA4GH Phenopackets](https://phenopacket-schema.readthedocs.io/) and Family
-JSON files. One verb per subcommand, composable over pipes, structured output,
-CI-friendly exit codes.
+A **samtools/bedtools-style** command-line toolkit and Python library for
+[GA4GH Phenopackets](https://phenopacket-schema.readthedocs.io/) and GA4GH
+pedigrees. One verb per subcommand, composable over pipes, structured output,
+exit codes you can use in scripts and CI.
 
-It reads files produced by different tools (including the `abusua2ga4gh` and
-`studio2ga4gh` dialects) **and** anyone else's GA4GH-compliant phenopackets,
-normalises them, slices them down to chosen phenotypes, de-identifies them,
-validates them, and converts between structural variants.
+It views, checks, normalises, filters, de-identifies, enriches and converts
+Phenopackets, Phenopackets Families and Cohorts, and **GA4GH Pedigrees**. Since
+0.4 it reads and writes them through
+[pedigree-ga4gh](https://github.com/comparativechrono/pedigree-ga4gh), the one
+GA4GH implementation that studio2ga4gh, ga4gh2studio and the Pedigree workbench
+also use, so all of them agree on a single, standard form.
 
-- **Zero-dependency core.** `read/write/validate/view/stats/filter/deidentify/
-  diff/sort/convert/split/merge/ped` need nothing beyond the standard library.
-- **Tolerant reader, configurable writer, lossless round-trip.** Unknown fields
-  are preserved; dialect quirks are reconciled on read and restored on write.
-- **No-guess ontology contract.** Ontology IDs are only ever filled by the
-  `normalise` step, under an explicit auto-accept policy.
+- **One form.** A GA4GH Pedigree is the Phenopackets form of the published
+  standard (every individual a Phenopacket v2, relationships coded with KIN);
+  Families, Phenopackets and Cohorts follow the Phenopackets v2 schema. Files
+  from older tools are recognised and converted once with `phenotk upgrade`.
+- **Small core.** Everything except ontology look-ups needs only pedigree-ga4gh,
+  which itself needs nothing beyond the standard library.
+- **No guessing.** Ontology ids are only ever filled in by `normalise`, from a
+  mapping you give it or a look-up that clears a similarity threshold, and every
+  decision is logged.
 
 ## Install
 
 ```bash
-pip install phenopacket-toolkit                 # zero-dependency core
-pip install 'phenopacket-toolkit[normalise]'    # + hponorm / mondonorm
-pip install 'phenopacket-toolkit[all]'          # + rapidfuzz, PyYAML, protobuf validation
+pip install phenopacket-toolkit                 # the core
+pip install 'phenopacket-toolkit[normalise]'    # + hponorm and mondonorm, for looking terms up
+pip install 'phenopacket-toolkit[all]'          # + rapidfuzz (faster matching) and PyYAML
 ```
 
-Requires Python >= 3.9.
+Requires Python 3.9 or later.
 
-## Quick start (CLI)
+## Quick start (command line)
 
 ```bash
-phenotk view family.json                       # readable table
-phenotk validate family.json --level reference # layered checks; non-zero exit on error
-phenotk stats family.json --format json        # counts + term frequency
+phenotk view family.json                        # a readable table
+phenotk validate family.json                    # Phenopackets v2 and the GA4GH Pedigree; exit 1 on errors
+phenotk stats family.json --format json         # counts and term frequency
 
-# fill ontology ids from a curated mapping, leaving anything unmatched empty
+# a file from studio2ga4gh 0.3 or abusua2ga4gh 0.2: convert it once
+phenotk upgrade old_phenopackets.json -o family.json
+
+# fill empty term ids from a curated mapping, leaving anything unmatched empty
 phenotk normalise family.json --no-online \
     --mapping labels.json --log decisions.json -o family.norm.json
 
-# cut a family down to a phenotype, expanding to descendant terms via an OBO file
+# cut a family down to a phenotype, including its more specific terms, from an OBO file
 phenotk filter family.json --term HP:0001626 --include-descendants \
     --backend obo --hpo-file hp.obo -o subset.json
 
-# enrich the proband with data a pedigree never carries: onset, a variant, demographics
+# add what a pedigree never carries: onset, severity, a variant, demographics
 phenotk add family.json --target proband \
     --phenotype "HP:0001657=Prolonged QT interval" --onset P14Y --severity "HP:0012828=Severe" \
     --variant --gene "HGNC:6294=KCNQ1" --hgvs "NM_000218.3:c.569G>A" \
-        --zygosity heterozygous --acmg PATHOGENIC --diagnosis "MONDO:0011382=sickle cell disease" \
+        --zygosity heterozygous --acmg PATHOGENIC --diagnosis "MONDO:0100316=long QT syndrome 1" \
     --karyotypic-sex XY --age P14Y --external-ref "PMID:31479590;;index case" \
     -o enriched.json
 
-# de-identify: drop DOB, remap every id consistently, keep a reversible crosswalk
+# de-identify: drop dates of birth, remap every id consistently, keep a crosswalk
 phenotk deidentify family.json --remap-ids seq --keyfile key.json -o deid.json
 
-phenotk convert family.json --to ped           # 6-column PED
-phenotk convert family.json --to tsv           # one row per (individual, term)
-phenotk diff a.json b.json                      # structural+semantic diff
+phenotk convert pedigree.json --to family       # GA4GH Pedigree -> Phenopackets Family
+phenotk convert family.json --to pedigree       # and back
+phenotk convert family.json --to ped            # 6-column PED
+phenotk convert family.json --to tsv            # one row per (individual, term)
+phenotk diff a.json b.json                      # structural and semantic differences
 phenotk split family.json --out-dir out/ --affected-only
 ```
 
-Most commands read `-` for stdin and write stdout, so they compose:
+Most commands read `-` for standard input and write to standard output, so
+they compose:
 
 ```bash
 cat family.json | phenotk filter - --affected | phenotk deidentify - -o clean.json
@@ -71,86 +82,90 @@ cat family.json | phenotk filter - --affected | phenotk deidentify - -o clean.js
 from phenopacket_toolkit import read, write
 from phenopacket_toolkit.ops import normalise, filter_document, deidentify, validate
 
-doc = read("family.json")                       # auto-detects format + dialect
+doc = read("family.json")                 # a Family, Phenopacket, Cohort or GA4GH Pedigree
 
 doc, log = normalise(doc, mapping={"diabetes": "MONDO:0005015"}, use_ontology=False)
 doc = filter_document(doc, terms=["MONDO:0005015"])
 result = deidentify(doc, drop_dob=True, remap_ids="seq")
 
-report = validate(result.document, level="reference")
+report = validate(result.document)
 if report.ok:
-    write(result.document, "clean.json", dialect="ga4gh")
+    write(result.document, "clean.json")
 ```
-
-## Dialects
-
-| Dialect  | Source                         | Reconciled on read                              |
-|----------|--------------------------------|-------------------------------------------------|
-| `ga4gh`  | spec-compliant                 | (canonical)                                     |
-| `abusua` | `abusua2ga4gh` `*.family.json` | `vital_status` -> `vitalStatus`                 |
-| `studio` | `studio2ga4gh` `*_phenopackets.json` | Family `metaData` inherited into each phenopacket |
-
-Choose the output dialect with `--to-dialect` (CLI) or `dialect=` (library);
-`--to-dialect preserve` re-emits in the source dialect. New dialects can be
-registered without touching the core via
-`phenopacket_toolkit.io.dialects.register`.
 
 ## Verbs
 
-`view`, `validate`, `normalise`, `filter`, `add`, `deidentify`, `convert`,
-`merge`, `split`, `stats`, `diff`, `sort`, `ped`. Run `phenotk <verb> --help`
-for options.
+`view`, `validate`, `stats`, `normalise`, `filter`, `deidentify`, `convert`,
+`upgrade`, `sort`, `diff`, `split`, `merge`, `ped`, `add`. Run
+`phenotk <verb> --help` for the options.
+
+## Older files
+
+Version 0.3 had "dialects" so that it could read the GA4GH files of
+studio2ga4gh 0.3 and abusua2ga4gh 0.2. Neither was in the standard's form, and
+reading both kept them alive. 0.4 reads one form: an older file is refused with
+a message, and `phenotk upgrade FILE -o NEW.json` rewrites it once, listing
+every change and what still needs a person (usually conditions without an
+ontology term). Files in the form of the draft of version 1 of the GA4GH
+Pedigree Standard, which is not yet approved, are recognised and refused with
+a message saying so.
 
 ## Adding fields a pedigree never carries
 
-A pedigree conversion gives you structure, sex, affected status and bare
-phenotype/disease labels. `add` lets you layer on the richer Phenopacket v2
-content, targeting the `proband`, `all`, `affected`/`unaffected`, or a specific
+A pedigree conversion gives you structure, sex, affected status and the
+conditions. `add` lets you layer on the richer Phenopacket v2 content,
+targeting the `proband`, `all`, `affected` or `unaffected` people, or one
 subject id:
 
 - **Age / onset** on phenotypes and diseases (`--onset P14Y`, an onset CURIE, or
   a timestamp), plus **severity** and **excluded** status.
 - **Genomic interpretations** — a variant with gene context, HGVS expression,
-  zygosity (GENO) and ACMG pathogenicity, wrapped in a diagnosis.
+  zygosity (GENO) and ACMG pathogenicity, in a diagnosis of the disease you give
+  (`--diagnosis` is required with `--variant`, since a diagnosis needs one).
 - **Measurements** — quantitative or categorical lab values (`--measurement-json`).
 - **Vital status detail** — `DECEASED`, cause of death, survival time.
 - **Subject demographics** — `dateOfBirth`, age (`timeAtLastEncounter`),
   `karyotypicSex`, `gender`, `taxonomy`.
-- **External references** (PMIDs etc.) and **files** (e.g. a linked VCF).
-- **Anything else** via generic `--set PATH=JSON`, `--merge`, `--append`, or a
+- **External references** (PMIDs and so on) and **files** (a linked VCF, say).
+- **Anything else** via `--set PATH=JSON`, `--merge`, `--append`, or a
   whole-object `--from-json PATCH`.
 
-In the library these are typed builders in `phenopacket_toolkit.model.builders`
-plus `phenopacket_toolkit.ops.add`.
+Every ontology the added terms use is declared in `metaData`, so the result
+stays valid. In the library these are the builders in
+`phenopacket_toolkit.model.builders` and `phenopacket_toolkit.ops.add`.
 
 ## Hierarchy-aware filtering
 
-`filter --include-descendants` keeps a term *and any of its subclasses*. The
-descendant set is resolved by `--backend`: `obo` parses an `hp.obo` / `mondo.obo`
-file (`--hpo-file` / `--mondo-file`, fully offline), `ols` queries the EBI
-Ontology Lookup Service, and `auto` tries a local source then falls back to OLS.
+`filter --include-descendants` keeps a term *and any of its more specific
+terms*. They come from `--backend`: `obo` reads an `hp.obo` / `mondo.obo` file
+(`--hpo-file` / `--mondo-file`, fully offline), `ols` asks EBI's Ontology
+Lookup Service, and `auto` tries a local file and falls back to OLS. Filtering
+a Family never leaves it without its proband, and the pedigree keeps everyone
+the filters did not take out.
 
 ## Normalisation and ontologies
 
-`normalise` fills empty term ids in this order: an explicit `--mapping` (label ->
-CURIE) always wins; remaining empties are resolved via `hponorm` (phenotypes) and
-`mondonorm` (diseases) when the `[normalise]` extra is installed; anything that
-does not clear the score `--threshold` (default 0.9) is left empty and recorded
-in the decision log. `--structure` additionally canonicalises CURIE prefixes,
-de-duplicates terms, and rebuilds `metaData.resources` from the ontologies in use.
+`normalise` fills empty term ids in this order: an explicit `--mapping` (label
+-> CURIE, matched without regard to case) always wins; the rest are looked up
+with `hponorm` (phenotypes) and `mondonorm` (diseases) when the `[normalise]`
+extra is installed. A looked-up term is accepted only if its label or a
+synonym is close enough to the name: the score is a similarity between 0 and
+1, and `--threshold` (default 0.9) is the minimum. Anything else is left empty
+and recorded in the decision log. The structure step then puts each term where
+it belongs (an HPO term among the phenotypic features, a Mondo, OMIM or
+Orphanet term among the diseases), removes duplicates, and declares every
+ontology in use in `metaData.resources`, with its release when it is known.
 
 ## Development
 
 ```bash
-pip install -e . --no-build-isolation
-python run_tests.py tests/test_toolkit.py    # offline runner (no pytest needed)
-pytest                                       # if pytest is available
+pip install -e ".[test]"
+pytest
 ```
 
-The test suite is driven by real example families in `tests/data/` and checks
-round-trip fidelity, cross-dialect equivalence, pedigree-graph validation,
-graph-consistent de-identification, and idempotent no-guess normalisation.
+The tests use fictional families in `tests/data` and small sample ontologies,
+so they never go online.
 
-## License
+## Licence
 
 MIT.

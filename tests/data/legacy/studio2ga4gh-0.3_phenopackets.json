@@ -1,0 +1,188 @@
+{
+  "id": "FAM1",
+  "pedigree": {
+    "persons": [
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-1",
+        "paternalId": "ind-14",
+        "maternalId": "ind-3",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-2",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-3",
+        "paternalId": "ind-16",
+        "maternalId": "ind-9",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-4",
+        "paternalId": "ind-16",
+        "maternalId": "ind-9",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-5",
+        "paternalId": "ind-14",
+        "maternalId": "ind-3",
+        "sex": "MALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-6",
+        "paternalId": "ind-16",
+        "maternalId": "ind-9",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-7",
+        "paternalId": "ind-14",
+        "maternalId": "ind-3",
+        "sex": "MALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-8",
+        "paternalId": "ind-13",
+        "maternalId": "ind-2",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-9",
+        "paternalId": "ind-13",
+        "maternalId": "ind-2",
+        "sex": "FEMALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-10",
+        "paternalId": "ind-8",
+        "maternalId": "ind-12",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-11",
+        "paternalId": "ind-14",
+        "maternalId": "ind-3",
+        "sex": "UNKNOWN_SEX",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-12",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-13",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-14",
+        "paternalId": "ind-8",
+        "maternalId": "ind-12",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-15",
+        "paternalId": "ind-14",
+        "maternalId": "ind-3",
+        "sex": "UNKNOWN_SEX",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "ind-16",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      }
+    ]
+  },
+  "metaData": {
+    "created": "2026-10-17T00:00:00Z",
+    "createdBy": "studio2ga4gh",
+    "resources": []
+  },
+  "proband": {
+    "id": "FAM1-proband",
+    "subject": {
+      "id": "ind-5",
+      "sex": "MALE"
+    },
+    "diseases": [
+      {
+        "term": {
+          "id": "",
+          "label": "Hearing loss from birth"
+        }
+      }
+    ]
+  },
+  "relatives": [
+    {
+      "id": "FAM1-ind-7",
+      "subject": {
+        "id": "ind-7",
+        "sex": "MALE"
+      },
+      "diseases": [
+        {
+          "term": {
+            "id": "",
+            "label": "Hearing loss from birth"
+          }
+        }
+      ]
+    },
+    {
+      "id": "FAM1-ind-9",
+      "subject": {
+        "id": "ind-9",
+        "sex": "FEMALE"
+      },
+      "diseases": [
+        {
+          "term": {
+            "id": "",
+            "label": "Breast cancer"
+          }
+        }
+      ]
+    }
+  ],
+  "consanguinousParents": true
+}

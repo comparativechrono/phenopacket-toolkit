@@ -38,7 +38,7 @@ class IndividualView:
 class PhenopacketView:
     def __init__(self, data: dict, role: str = "proband", path: str = ""):
         self._d = data
-        self.role = role            # "proband" | "relative"
+        self.role = role            # "proband" | "relative" | "member"
         self.path = path
 
     @property
@@ -86,6 +86,33 @@ class Person:
     @property
     def affected_status(self) -> str:
         return self._d.get("affectedStatus", "MISSING")
+
+    @property
+    def raw(self) -> dict:
+        return self._d
+
+
+class RelationshipView:
+    """One relationship of a GA4GH Pedigree: individual *relation* relative."""
+
+    def __init__(self, data: dict):
+        self._d = data
+
+    @property
+    def individual(self) -> str:
+        return self._d.get("individualId", "")
+
+    @property
+    def relative(self) -> str:
+        return self._d.get("relativeId", "")
+
+    @property
+    def relation_id(self) -> str:
+        return (self._d.get("relation") or {}).get("id", "")
+
+    @property
+    def relation_label(self) -> str:
+        return (self._d.get("relation") or {}).get("label", "")
 
     @property
     def raw(self) -> dict:

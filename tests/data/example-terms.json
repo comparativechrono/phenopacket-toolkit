@@ -1,0 +1,37 @@
+{
+  "Breast cancer": {
+    "id": "MONDO:0007254",
+    "label": "breast cancer",
+    "version": "2026-10-06"
+  },
+  "Ovarian cancer": {
+    "id": "MONDO:0008170",
+    "label": "ovarian cancer",
+    "version": "2026-10-06"
+  },
+  "Prostate cancer": {
+    "id": "MONDO:0008315",
+    "label": "prostate cancer",
+    "version": "2026-10-06"
+  },
+  "Bowel cancer": {
+    "id": "MONDO:0005575",
+    "label": "colorectal cancer",
+    "version": "2026-10-06"
+  },
+  "Pancreatic cancer": {
+    "id": "MONDO:0009831",
+    "label": "malignant pancreatic neoplasm",
+    "version": "2026-10-06"
+  },
+  "Cystic fibrosis": {
+    "id": "MONDO:0009061",
+    "label": "cystic fibrosis",
+    "version": "2026-10-06"
+  },
+  "Hearing loss from birth": {
+    "id": "HP:0000365",
+    "label": "Hearing impairment",
+    "version": "2026-09-01"
+  }
+}

@@ -1,0 +1,260 @@
+{
+  "id": "FAM1",
+  "proband": {
+    "id": "FAM1-IV-3",
+    "subject": {
+      "id": "IV-3",
+      "vitalStatus": {
+        "status": "ALIVE"
+      },
+      "sex": "MALE"
+    },
+    "phenotypicFeatures": [
+      {
+        "type": {
+          "id": "HP:0000365",
+          "label": "Hearing impairment"
+        }
+      }
+    ],
+    "metaData": {
+      "created": "2026-10-17T12:00:00Z",
+      "createdBy": "studio2ga4gh 0.4.0",
+      "resources": [
+        {
+          "id": "hp",
+          "name": "human phenotype ontology",
+          "url": "http://purl.obolibrary.org/obo/hp.owl",
+          "version": "2026-09-01",
+          "namespacePrefix": "HP",
+          "iriPrefix": "http://purl.obolibrary.org/obo/HP_"
+        }
+      ],
+      "phenopacketSchemaVersion": "2.0"
+    }
+  },
+  "relatives": [
+    {
+      "id": "FAM1-II-3",
+      "subject": {
+        "id": "II-3",
+        "vitalStatus": {
+          "status": "ALIVE"
+        },
+        "sex": "FEMALE"
+      },
+      "diseases": [
+        {
+          "term": {
+            "id": "MONDO:0007254",
+            "label": "breast cancer"
+          }
+        }
+      ],
+      "metaData": {
+        "created": "2026-10-17T12:00:00Z",
+        "createdBy": "studio2ga4gh 0.4.0",
+        "resources": [
+          {
+            "id": "mondo",
+            "name": "Mondo Disease Ontology",
+            "url": "http://purl.obolibrary.org/obo/mondo.obo",
+            "version": "2026-10-06",
+            "namespacePrefix": "MONDO",
+            "iriPrefix": "http://purl.obolibrary.org/obo/MONDO_"
+          }
+        ],
+        "phenopacketSchemaVersion": "2.0"
+      }
+    },
+    {
+      "id": "FAM1-IV-4",
+      "subject": {
+        "id": "IV-4",
+        "vitalStatus": {
+          "status": "ALIVE"
+        },
+        "sex": "MALE"
+      },
+      "phenotypicFeatures": [
+        {
+          "type": {
+            "id": "HP:0000365",
+            "label": "Hearing impairment"
+          }
+        }
+      ],
+      "metaData": {
+        "created": "2026-10-17T12:00:00Z",
+        "createdBy": "studio2ga4gh 0.4.0",
+        "resources": [
+          {
+            "id": "hp",
+            "name": "human phenotype ontology",
+            "url": "http://purl.obolibrary.org/obo/hp.owl",
+            "version": "2026-09-01",
+            "namespacePrefix": "HP",
+            "iriPrefix": "http://purl.obolibrary.org/obo/HP_"
+          }
+        ],
+        "phenopacketSchemaVersion": "2.0"
+      }
+    }
+  ],
+  "consanguinousParents": true,
+  "pedigree": {
+    "persons": [
+      {
+        "familyId": "FAM1",
+        "individualId": "I-1",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "I-2",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "II-1",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "II-2",
+        "paternalId": "I-1",
+        "maternalId": "I-2",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "II-3",
+        "paternalId": "I-1",
+        "maternalId": "I-2",
+        "sex": "FEMALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "II-4",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "III-1",
+        "paternalId": "II-2",
+        "maternalId": "II-1",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "III-2",
+        "paternalId": "II-2",
+        "maternalId": "II-1",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "III-3",
+        "paternalId": "II-4",
+        "maternalId": "II-3",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "III-4",
+        "paternalId": "II-4",
+        "maternalId": "II-3",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "III-5",
+        "paternalId": "II-4",
+        "maternalId": "II-3",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "IV-1",
+        "paternalId": "III-2",
+        "maternalId": "III-3",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "IV-2",
+        "paternalId": "III-2",
+        "maternalId": "III-3",
+        "sex": "UNKNOWN_SEX",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "IV-3",
+        "paternalId": "III-2",
+        "maternalId": "III-3",
+        "sex": "MALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "IV-4",
+        "paternalId": "III-2",
+        "maternalId": "III-3",
+        "sex": "MALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "IV-5",
+        "paternalId": "III-2",
+        "maternalId": "III-3",
+        "sex": "UNKNOWN_SEX",
+        "affectedStatus": "UNAFFECTED"
+      }
+    ]
+  },
+  "metaData": {
+    "created": "2026-10-17T12:00:00Z",
+    "createdBy": "studio2ga4gh 0.4.0",
+    "resources": [
+      {
+        "id": "hp",
+        "name": "human phenotype ontology",
+        "url": "http://purl.obolibrary.org/obo/hp.owl",
+        "version": "2026-09-01",
+        "namespacePrefix": "HP",
+        "iriPrefix": "http://purl.obolibrary.org/obo/HP_"
+      },
+      {
+        "id": "mondo",
+        "name": "Mondo Disease Ontology",
+        "url": "http://purl.obolibrary.org/obo/mondo.obo",
+        "version": "2026-10-06",
+        "namespacePrefix": "MONDO",
+        "iriPrefix": "http://purl.obolibrary.org/obo/MONDO_"
+      }
+    ],
+    "phenopacketSchemaVersion": "2.0"
+  }
+}

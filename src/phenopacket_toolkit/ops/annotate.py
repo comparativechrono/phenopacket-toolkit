@@ -110,7 +110,14 @@ def add(
         if measurements:
             pkt.setdefault("measurements", []).extend(B.measurement(**m) for m in measurements)
         if interpretations:
-            pkt.setdefault("interpretations", []).extend(copy.deepcopy(interpretations))
+            added = copy.deepcopy(interpretations)
+            # a genomic interpretation is of this person, unless it says whose it is
+            sid = (pkt.get("subject") or {}).get("id", "")
+            for interp in added:
+                for gi in ((interp.get("diagnosis") or {}).get("genomicInterpretations") or []):
+                    if not gi.get("subjectOrBiosampleId"):
+                        gi["subjectOrBiosampleId"] = sid
+            pkt.setdefault("interpretations", []).extend(added)
         if external_references:
             md = pkt.setdefault("metaData", {})
             md.setdefault("externalReferences", []).extend(copy.deepcopy(external_references))
@@ -129,6 +136,10 @@ def add(
         if patch:
             _deep_merge(pkt, copy.deepcopy(patch))
 
+    # the terms added may come from ontologies the file did not use yet: declare them in metaData (and nothing
+    # else changes in a file in the standard form)
+    from pedigree_ga4gh import upgrade
+    out.raw, _changes, _todo = upgrade(out.raw, created_by="phenotk add")
     return out
 
 

@@ -1,12 +1,26 @@
-"""Normalisation: fill term ids (mapping / hponorm / mondonorm) and tidy structure."""
+"""Normalisation: fill empty term ids (mapping, hponorm, mondonorm) and tidy the structure.
+
+Term filling never guesses. An explicit ``mapping`` (label -> CURIE) always wins;
+the remaining empty terms are looked up with hponorm (phenotypes) and mondonorm
+(diseases) when they are installed, and filled only when the best match clears
+``threshold``; anything else is left empty and listed in the decision log.
+
+Tidying (``structure``) runs pedigree-ga4gh's upgrade on the document, which
+puts CURIE prefixes in their usual case, checks KIN labels, and rebuilds each
+metaData so it declares every ontology used, with all six resource fields. The
+releases of the ontologies used to fill terms are recorded as the resource
+versions.
+"""
 from __future__ import annotations
 
-import copy
 import json
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from ..model.curie import is_curie, normalise_prefix, term_is_empty
+from pedigree_ga4gh import upgrade as _upgrade
+from pedigree_ga4gh.ontology import is_curie, prefix_of, tidy_curie
+
+from ..model.curie import term_is_empty
 from ..model.document import Document
 from ..ontology.policy import AutoAcceptPolicy
 
@@ -15,12 +29,12 @@ from ..ontology.policy import AutoAcceptPolicy
 class DecisionLog:
     resolved: Dict[str, str] = field(default_factory=dict)     # label -> id
     unresolved: List[str] = field(default_factory=list)        # labels left empty
-    notes: List[str] = field(default_factory=list)             # what happened / why
+    notes: List[str] = field(default_factory=list)             # what happened and why
+    versions: Dict[str, str] = field(default_factory=dict)     # ontology prefix -> release used
 
     def to_dict(self) -> dict:
-        return {"resolved": self.resolved,
-                "unresolved": sorted(set(self.unresolved)),
-                "notes": self.notes}
+        return {"resolved": self.resolved, "unresolved": sorted(set(self.unresolved)),
+                "notes": self.notes, "versions": self.versions}
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
@@ -33,47 +47,40 @@ class DecisionLog:
         if self.unresolved:
             lines.append("  unresolved: " + ", ".join(sorted(set(self.unresolved))))
         if to_stdout:
-            lines.append("  (normalised JSON written to stdout; "
-                         "use -o FILE or --in-place to save it)")
+            lines.append("  (normalised JSON written to stdout; use -o FILE or --in-place to save it)")
         return "\n".join(lines)
 
 
-def normalise(
-    doc: Document,
-    *,
-    terms: bool = True,
-    structure: bool = True,
-    threshold: float = 0.9,
-    backend: str = "auto",
-    mapping: Optional[Dict[str, str]] = None,
-    hpo_file: Optional[str] = None,
-    mondo_file: Optional[str] = None,
-    use_ontology: bool = True,
-) -> Tuple[Document, DecisionLog]:
-    """Return (new Document, decision log).
+def _mapping_value(value) -> Tuple[str, str]:
+    """A mapping entry as (curie, label); label is '' to keep the file's own label."""
+    if isinstance(value, dict):
+        return tidy_curie(value.get("id") or value.get("curie") or ""), (value.get("label") or "")
+    return tidy_curie(str(value or "")), ""
 
-    Term filling order: an explicit ``mapping`` (label->id) always wins; any
-    remaining empty terms are resolved via hponorm/mondonorm if ``use_ontology``
-    and the packages are installed; otherwise they are left empty (no-guess).
-    """
+
+def normalise(doc: Document, *, terms: bool = True, structure: bool = True, threshold: float = 0.9,
+              backend: str = "auto", mapping: Optional[Dict] = None, hpo_file: Optional[str] = None,
+              mondo_file: Optional[str] = None, use_ontology: bool = True,
+              versions: Optional[Dict[str, str]] = None) -> Tuple[Document, DecisionLog]:
+    """Return (new Document, decision log)."""
     out = doc.copy()
     log = DecisionLog()
-
+    if versions:
+        log.versions.update(versions)
     if terms:
-        _fill_terms(out, mapping or {}, threshold, backend,
-                    hpo_file, mondo_file, use_ontology, log)
+        _fill_terms(out, mapping or {}, threshold, backend, hpo_file, mondo_file, use_ontology, log)
     if structure:
-        _normalise_structure(out)
+        _place_terms(out, log)
+        _dedupe_terms(out)
+        data, changes, _todo = _upgrade(out.raw, created_by="phenotk normalise", versions=log.versions)
+        out.raw = data
+        log.notes.extend(changes)
     return out, log
 
 
-def _fill_terms(doc, mapping, threshold, backend, hpo_file, mondo_file,
-                use_ontology, log: DecisionLog) -> None:
+def _fill_terms(doc, mapping, threshold, backend, hpo_file, mondo_file, use_ontology, log: DecisionLog) -> None:
     policy = AutoAcceptPolicy(threshold=threshold)
     lower_map = {k.lower(): v for k, v in mapping.items()}
-
-    # backend handles: None = not yet attempted, False = attempted & unavailable,
-    # otherwise a usable backend object. Built once, on first need.
     handles = {"phenotype": None, "disease": None}
 
     def get_backend(kind):
@@ -82,120 +89,117 @@ def _fill_terms(doc, mapping, threshold, backend, hpo_file, mondo_file,
                 if kind == "phenotype":
                     from ..ontology.backends import hpo_backend
                     handles[kind] = hpo_backend(backend=backend, hpo_file=hpo_file)
-                    log.notes.append("phenotype backend ready ({} via hponorm)".format(backend))
                 else:
                     from ..ontology.backends import mondo_backend
                     handles[kind] = mondo_backend(backend=backend, mondo_file=mondo_file)
-                    log.notes.append("disease backend ready ({} via mondonorm)".format(backend))
+                be = handles[kind]
+                log.notes.append("{} terms looked up with {} ({})".format(
+                    kind, "hponorm" if kind == "phenotype" else "mondonorm", be.name))
+                if be.version:
+                    log.versions.setdefault("HP" if kind == "phenotype" else "MONDO", be.version)
             except RuntimeError as exc:
                 handles[kind] = False
-                log.notes.append(str(exc))   # actionable: explains the backend is missing
-            except Exception as exc:          # noqa: BLE001 - never crash normalise on backend setup
+                log.notes.append(str(exc))
+            except Exception as exc:  # noqa: BLE001 - never crash normalise on backend set-up
                 handles[kind] = False
-                log.notes.append("{} backend unavailable: {}".format(kind, exc))
+                log.notes.append("{} look-up unavailable: {}".format(kind, exc))
         return handles[kind]
 
     if not use_ontology:
-        log.notes.append("ontology lookup disabled (--no-online): mapping-only")
+        log.notes.append("ontology look-up switched off: mapping only")
 
     for pp in doc.phenopackets():
         for ref in pp.term_refs():
             if not term_is_empty(ref.term):
-                if ref.id and ref.id != normalise_prefix(ref.id):
-                    ref.set(normalise_prefix(ref.id), ref.label)
+                if ref.id != tidy_curie(ref.id):
+                    ref.set(tidy_curie(ref.id), ref.label)
                 continue
             label = ref.label.strip()
             if not label:
                 continue
-
-            # 1) explicit mapping wins
-            hit = mapping.get(label) or lower_map.get(label.lower())
+            hit = mapping.get(label) if label in mapping else lower_map.get(label.lower())
             if hit:
-                ref.set(normalise_prefix(hit), ref.label)
-                log.resolved[label] = ref.id
-                continue
-
-            # 2) ontology suggestion (only if enabled AND its backend is available)
+                curie, new_label = _mapping_value(hit)
+                if is_curie(curie):
+                    ref.set(curie, new_label or ref.label)
+                    log.resolved[label] = curie
+                    # a terms file records the release each term came from (Match conditions to terms writes it)
+                    if isinstance(hit, dict) and hit.get("version"):
+                        log.versions.setdefault(prefix_of(curie), str(hit["version"]))
+                    continue
+                log.notes.append("mapping for {!r} is not a CURIE: {!r}".format(label, curie))
             if use_ontology:
                 be = get_backend(ref.kind)
                 if be:
                     try:
                         cands = be.suggest(label)
-                    except Exception as exc:                 # noqa: BLE001
+                    except Exception as exc:  # noqa: BLE001
                         cands = []
-                        log.notes.append("suggest failed for {!r}: {}".format(label, exc))
+                        log.notes.append("look-up failed for {!r}: {}".format(label, exc))
                     chosen = policy.choose(cands)
                     if chosen:
-                        ref.set(normalise_prefix(chosen.id), chosen.label or ref.label)
+                        ref.set(tidy_curie(chosen.id), chosen.label or ref.label)
                         log.resolved[label] = ref.id
                         continue
-
-            # 3) no-guess: leave empty
             log.unresolved.append(label)
+    for prefix in {prefix_of(v) for v in log.resolved.values()}:
+        log.versions.setdefault(prefix, "")
+    log.versions = {k: v for k, v in log.versions.items() if v}
 
 
-def _normalise_structure(doc: Document) -> None:
-    # canonicalise CURIE prefixes + dedupe terms within each packet
+# A disease is named by a disease ontology and a phenotypic feature by a phenotype ontology (Phenopackets v2:
+# Disease.term "e.g. MONDO, OMIM, Orphanet, DOID"; PhenotypicFeature.type "HPO recommended"). A name that is
+# filled in with a term of the other kind – "Hearing loss from birth", written as a disease by an older tool, is
+# HP:0000365 – is moved to where its term belongs, with the fields both have.
+_DISEASE_PREFIXES = {"MONDO", "OMIM", "ORPHA", "Orphanet", "DOID"}
+_SHARED = ("excluded", "onset", "resolution")
+
+
+def _place_terms(doc: Document, log: DecisionLog) -> None:
     for pp in doc.phenopackets():
-        _dedupe(pp.raw, "phenotypicFeatures", "type")
-        _dedupe(pp.raw, "diseases", "term")
-    _rebuild_resources(doc)
-
-
-def _dedupe(packet: dict, list_key: str, term_key: str) -> None:
-    items = packet.get(list_key)
-    if not items:
-        return
-    seen = set()
-    out = []
-    for item in items:
-        term = item.get(term_key, {}) if isinstance(item, dict) else {}
-        if term.get("id"):
-            term["id"] = normalise_prefix(term["id"])
-        key = (term.get("id", ""), term.get("label", ""), bool(item.get("excluded")))
-        if key in seen:
+        raw = pp.raw
+        diseases, features = raw.get("diseases") or [], raw.get("phenotypicFeatures") or []
+        to_features = [d for d in diseases if isinstance(d, dict) and prefix_of((d.get("term") or {}).get("id", "")) == "HP"
+                       and set(d) <= {"term", *_SHARED}]
+        to_diseases = [f for f in features if isinstance(f, dict)
+                       and prefix_of((f.get("type") or {}).get("id", "")) in _DISEASE_PREFIXES
+                       and set(f) <= {"type", *_SHARED}]
+        if not to_features and not to_diseases:
             continue
-        seen.add(key)
-        out.append(item)
-    packet[list_key] = out
+        who = pp.subject.id or pp.path or "?"
+        for d in to_features:
+            feature = {"type": d["term"]}
+            feature.update({k: d[k] for k in _SHARED if k in d})
+            features.append(feature)
+            log.notes.append("{}: {} '{}' is a phenotype (HPO), so it moved from diseases to phenotypicFeatures".format(
+                who, d["term"].get("id"), d["term"].get("label", "")))
+        for f in to_diseases:
+            disease = {"term": f["type"]}
+            disease.update({k: f[k] for k in _SHARED if k in f})
+            diseases.append(disease)
+            log.notes.append("{}: {} '{}' is a disease, so it moved from phenotypicFeatures to diseases".format(
+                who, f["type"].get("id"), f["type"].get("label", "")))
+        diseases = [d for d in diseases if not any(d is x for x in to_features)]
+        features = [f for f in features if not any(f is x for x in to_diseases)]
+        for key, items in (("diseases", diseases), ("phenotypicFeatures", features)):
+            if items:
+                raw[key] = items
+            else:
+                raw.pop(key, None)
 
 
-_RESOURCE_DEFS = {
-    "HP": {"id": "hp", "name": "Human Phenotype Ontology",
-           "url": "http://purl.obolibrary.org/obo/hp.owl",
-           "namespacePrefix": "HP", "iriPrefix": "http://purl.obolibrary.org/obo/HP_"},
-    "MONDO": {"id": "mondo", "name": "Mondo Disease Ontology",
-              "url": "http://purl.obolibrary.org/obo/mondo.owl",
-              "namespacePrefix": "MONDO", "iriPrefix": "http://purl.obolibrary.org/obo/MONDO_"},
-    "GENO": {"id": "geno", "name": "Genotype Ontology",
-             "url": "http://purl.obolibrary.org/obo/geno.owl",
-             "namespacePrefix": "GENO", "iriPrefix": "http://purl.obolibrary.org/obo/GENO_"},
-    "NCIT": {"id": "ncit", "name": "NCI Thesaurus",
-             "url": "http://purl.obolibrary.org/obo/ncit.owl",
-             "namespacePrefix": "NCIT", "iriPrefix": "http://purl.obolibrary.org/obo/NCIT_"},
-    "UBERON": {"id": "uberon", "name": "Uberon multi-species anatomy ontology",
-               "url": "http://purl.obolibrary.org/obo/uberon.owl",
-               "namespacePrefix": "UBERON", "iriPrefix": "http://purl.obolibrary.org/obo/UBERON_"},
-    "HGNC": {"id": "hgnc", "name": "HUGO Gene Nomenclature Committee",
-             "url": "https://www.genenames.org",
-             "namespacePrefix": "HGNC", "iriPrefix": "https://identifiers.org/hgnc/"},
-    "LOINC": {"id": "loinc", "name": "Logical Observation Identifiers Names and Codes",
-              "url": "https://loinc.org",
-              "namespacePrefix": "LOINC", "iriPrefix": "https://loinc.org/"},
-}
-
-
-def _rebuild_resources(doc: Document) -> None:
-    """Ensure metaData.resources lists every ontology actually used."""
-    used = set()
+def _dedupe_terms(doc: Document) -> None:
     for pp in doc.phenopackets():
-        for ref in pp.term_refs():
-            if is_curie(ref.id):
-                used.add(ref.id.split(":", 1)[0])
-
-    md = doc.raw.setdefault("metaData", {})
-    existing = {r.get("namespacePrefix"): r for r in md.get("resources", []) or []}
-    for prefix in sorted(used):
-        if prefix not in existing and prefix in _RESOURCE_DEFS:
-            existing[prefix] = copy.deepcopy(_RESOURCE_DEFS[prefix])
-    md["resources"] = [existing[k] for k in sorted(existing) if k]
+        for list_key, term_key in (("phenotypicFeatures", "type"), ("diseases", "term")):
+            items = pp.raw.get(list_key)
+            if not items:
+                continue
+            seen, kept = set(), []
+            for item in items:
+                term = item.get(term_key, {}) if isinstance(item, dict) else {}
+                key = (term.get("id", ""), term.get("label", ""), bool(item.get("excluded")))
+                if term.get("id") and key in seen:
+                    continue
+                seen.add(key)
+                kept.append(item)
+            pp.raw[list_key] = kept

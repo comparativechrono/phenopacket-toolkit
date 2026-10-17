@@ -10,6 +10,12 @@ def sort_document(doc: Document) -> Document:
 
     if isinstance(raw.get("relatives"), list):
         raw["relatives"].sort(key=lambda pp: pp.get("subject", {}).get("id", ""))
+    for key in ("individuals", "members"):
+        if isinstance(raw.get(key), list):
+            raw[key].sort(key=lambda pp: (pp.get("subject") or {}).get("id", ""))
+    if isinstance(raw.get("relationships"), list):
+        raw["relationships"].sort(key=lambda r: (r.get("individualId", ""), (r.get("relation") or {}).get("id", ""),
+                                                 r.get("relativeId", "")))
 
     if isinstance(raw.get("pedigree"), dict):
         persons = raw["pedigree"].get("persons")

@@ -12,7 +12,7 @@ def render_report(report: Report, *, fmt: str = "human") -> str:
     if fmt == "json":
         return json.dumps(report.to_dict(), indent=2)
     if not report.findings:
-        return "OK - no issues found."
+        return "OK - no problems found."
     lines = []
     for f in report.findings:
         loc = " [{}]".format(f.path) if f.path else ""

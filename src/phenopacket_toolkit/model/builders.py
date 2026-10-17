@@ -20,6 +20,8 @@ ZYGOSITY = {
     "homozygous": ("GENO:0000136", "homozygous"),
     "hemizygous": ("GENO:0000134", "hemizygous"),
 }
+# (the same, by id: a zygosity given as its GENO id gets its label)
+ZYGOSITY.update({zid.lower(): (zid, zlabel) for zid, zlabel in list(ZYGOSITY.values())})
 
 
 def ontology_class(id_: str, label: str = "") -> dict:

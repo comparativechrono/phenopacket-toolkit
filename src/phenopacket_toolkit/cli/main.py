@@ -8,7 +8,6 @@ from typing import List, Optional
 
 from .. import __version__
 from ..io import readers, writers
-from ..model.profile import Dialect
 from ..ops import convert, splitmerge, view
 from ..ops import filter as filt
 from ..ops import sort as sortop
@@ -20,10 +19,10 @@ from ..ops import validation as val
 from ..report.render import render_report
 
 
-def _read(path: str, dialect: Optional[str]) -> "object":
+def _read(path: str, allow_legacy: bool = False) -> "object":
     if path == "-":
-        return readers.loads(sys.stdin.read(), dialect=dialect, path="<stdin>")
-    return readers.read(path, dialect=dialect)
+        return readers.loads(sys.stdin.read(), path="<stdin>", allow_legacy=allow_legacy)
+    return readers.read(path, allow_legacy=allow_legacy)
 
 
 def _emit(text: str, output: Optional[str]) -> None:
@@ -36,27 +35,27 @@ def _emit(text: str, output: Optional[str]) -> None:
 
 # -- command implementations ----------------------------------------------
 def cmd_view(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     _emit(view.render(doc, show_terms=not a.no_terms), a.output)
     return 0
 
 
 def cmd_validate(a) -> int:
-    doc = _read(a.input, a.dialect)
-    report = val.validate(doc, level=a.level, online=a.online)
+    doc = _read(a.input)
+    report = val.validate(doc)
     _emit(render_report(report, fmt=a.format), a.output)
     return 0 if report.ok else 1
 
 
 def cmd_stats(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     res = statsop.stats(doc)
     _emit(statsop.render_stats(res, fmt=a.format), a.output)
     return 0
 
 
 def cmd_normalise(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     mapping = json.load(open(a.mapping)) if a.mapping else None
     if isinstance(mapping, dict) and "resolved" in mapping:
         mapping = mapping["resolved"]      # accept a decision-log file directly
@@ -76,7 +75,7 @@ def cmd_normalise(a) -> int:
 
 
 def cmd_filter(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     resolver = None
     if a.include_descendants:
         from ..ontology.hierarchy import make_resolver
@@ -94,7 +93,7 @@ def cmd_filter(a) -> int:
 
 
 def cmd_deidentify(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     res = deidentify.deidentify(
         doc, remap_ids=(None if a.keep_ids else a.remap_ids), salt=a.salt,
         drop_dob=not a.keep_dob, bin_age=a.bin_age, drop_names=not a.keep_names,
@@ -109,56 +108,80 @@ def cmd_deidentify(a) -> int:
 
 
 def cmd_convert(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
+    if a.to in ("pedigree", "family"):
+        out, warnings = convert.to_kind(doc, a.to, proband_id=a.proband)
+        _write_doc(out, a)
+        for w in warnings:
+            sys.stderr.write("note: {}\n".format(w))
+        return 0
     if a.to in ("yaml", "jsonl"):
         if not a.output or a.output == "-":
             sys.stderr.write("convert --to {} needs -o FILE\n".format(a.to)); return 2
         if a.to == "jsonl":
-            writers.write_many([doc], a.output, dialect=a.to_dialect)
+            writers.write_many([doc], a.output)
         else:
-            writers.write(doc, a.output, dialect=a.to_dialect, fmt="yaml")
+            writers.write(doc, a.output, fmt="yaml")
         return 0
-    _emit(convert.to_format(doc, a.to, dialect=a.to_dialect), a.output)
+    _emit(convert.to_format(doc, a.to), a.output)
+    return 0
+
+
+def cmd_upgrade(a) -> int:
+    from pedigree_ga4gh import upgrade
+    from ..model.document import Document
+    doc = _read(a.input, allow_legacy=True)
+    data, changes, todo = upgrade(doc.raw, created_by=a.created_by)
+    _write_doc(Document(data), a)
+    for c in changes:
+        sys.stderr.write("changed: {}\n".format(c))
+    for t in todo:
+        sys.stderr.write("to do: {}\n".format(t))
+    if not changes:
+        sys.stderr.write("nothing needed changing\n")
     return 0
 
 
 def cmd_sort(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     _write_doc(sortop.sort_document(doc), a)
     return 0
 
 
 def cmd_diff(a) -> int:
-    da = _read(a.a, a.dialect)
-    db = _read(a.b, a.dialect)
-    ignore = [] if a.strict else ["order", "provenance", "dialect"]
+    da = _read(a.a)
+    db = _read(a.b)
+    ignore = [] if a.strict else ["order", "provenance"]
     diffs = diff.diff(da, db, ignore=ignore)
     _emit(diff.render_diff(diffs, fmt=a.format), a.output)
     return 0 if not diffs else 1
 
 
 def cmd_split(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     docs = splitmerge.split(doc, affected_only=a.affected_only)
     import os
     os.makedirs(a.out_dir, exist_ok=True)
     for d in docs:
         sid = (d.proband().subject.id if d.proband() else "unknown")
         path = os.path.join(a.out_dir, "{}.json".format(sid))
-        writers.write(d, path, dialect=a.to_dialect)
+        writers.write(d, path)
     sys.stderr.write("wrote {} phenopacket(s) to {}\n".format(len(docs), a.out_dir))
     return 0
 
 
 def cmd_merge(a) -> int:
-    docs = [_read(p, a.dialect) for p in a.inputs]
-    out = splitmerge.merge(docs, into=a.into, cohort_id=a.id)
+    docs = [_read(p) for p in a.inputs]
+    notes: list = []
+    out = splitmerge.merge(docs, into=a.into, cohort_id=a.id, notes=notes)
+    for note in notes:
+        print("note: " + note, file=sys.stderr)
     _write_doc(out, a)
     return 0
 
 
 def cmd_ped(a) -> int:
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
     _emit(writers.to_ped(doc), a.output)
     return 0
 
@@ -186,7 +209,7 @@ def _parse_pathval(spec):
 def cmd_add(a) -> int:
     from ..ops import annotate
     from ..model import builders as B
-    doc = _read(a.input, a.dialect)
+    doc = _read(a.input)
 
     phenotypes = []
     for spec in (a.phenotype or []):
@@ -210,6 +233,9 @@ def cmd_add(a) -> int:
     measurements = [json.loads(m) for m in (a.measurement_json or [])]
 
     interpretations = None
+    if a.variant and not a.diagnosis:
+        raise ValueError("--variant needs --diagnosis CURIE[=Label]: in a Phenopacket a variant is part of the "
+                         "interpretation of a diagnosis, which must name its disease")
     if a.variant or a.diagnosis:
         var = None
         if a.variant:
@@ -217,11 +243,10 @@ def cmd_add(a) -> int:
             var = B.variation_descriptor(gene_id=gid, gene_symbol=gsym,
                                          hgvs=a.hgvs, zygosity=a.zygosity)
         did, dlabel = _parse_curie_label(a.diagnosis) if a.diagnosis else (None, "")
-        # subject id filled per-target below via patch is awkward; use proband id
-        subj = doc.proband().subject.id if doc.proband() else ""
+        # (the subject of the genomic interpretation is filled in for each target by annotate.add)
         interpretations = [B.interpretation(
             progress_status=a.progress_status, disease_id=did, disease_label=dlabel,
-            subject_id=subj, acmg=a.acmg, variation=var)]
+            subject_id="", acmg=a.acmg, variation=var)]
 
     external_references = []
     for spec in (a.external_ref or []):
@@ -267,7 +292,7 @@ def cmd_add(a) -> int:
 
 # -- shared helpers --------------------------------------------------------
 def _write_doc(doc, a) -> None:
-    text = writers.to_json_str(doc, dialect=getattr(a, "to_dialect", Dialect.GA4GH))
+    text = writers.to_json_str(doc)
     out = getattr(a, "output", None)
     if getattr(a, "in_place", False) and a.input != "-":
         out = a.input
@@ -286,33 +311,48 @@ def _read_id_list_safe(path):
 
 
 # -- argument parser -------------------------------------------------------
+# Options of version 0.3 that 0.4 no longer needs. They are still accepted, so that 0.3's commands run, and
+# ignored with a note: 0.4 reads and writes one form (no dialects), and validation has no levels.
+_OLD_OPTIONS = {"old_dialect": "--dialect", "old_to_dialect": "--to-dialect", "old_level": "--level",
+                "old_online": "--online"}
+
+
+def old_dialect_options(sp, writes=True) -> None:
+    sp.add_argument("--dialect", dest="old_dialect", default=None, help=argparse.SUPPRESS)
+    if writes:
+        sp.add_argument("--to-dialect", dest="old_to_dialect", default=None, help=argparse.SUPPRESS)
+
+
+def _note_old_options(args) -> None:
+    used = [flag for dest, flag in _OLD_OPTIONS.items() if getattr(args, dest, None) not in (None, False)]
+    if used:
+        sys.stderr.write("phenotk: {} {} not needed since version 0.4, which reads and writes one form of each "
+                         "file and checks everything at once; ignored.\n".format(
+                             " and ".join(used), "is" if len(used) == 1 else "are"))
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="phenotk",
-                                description="samtools/bedtools-style toolkit for GA4GH phenopackets")
+                                description="samtools/bedtools-style toolkit for GA4GH Phenopackets and pedigrees")
     p.add_argument("--version", action="version", version="phenotk " + __version__)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    def common(sp, output=True, dialect_in=True, writes=False):
-        if dialect_in:
-            sp.add_argument("--dialect", choices=Dialect.ALL, default=None,
-                            help="force input dialect (default: auto-detect)")
+    def common(sp, output=True, writes=False):
         if output:
             sp.add_argument("-o", "--output", default=None, help="output file (default: stdout)")
         if writes:
-            sp.add_argument("--to-dialect", choices=Dialect.ALL, default=Dialect.GA4GH,
-                            help="output dialect (default: ga4gh)")
             sp.add_argument("--in-place", action="store_true", help="overwrite the input file")
+        old_dialect_options(sp, writes)
 
     sp = sub.add_parser("view", help="render a readable table")
     sp.add_argument("input"); sp.add_argument("--no-terms", action="store_true")
     common(sp); sp.set_defaults(func=cmd_view)
 
-    sp = sub.add_parser("validate", help="layered conformance + lint")
+    sp = sub.add_parser("validate", help="check against Phenopackets v2 and the GA4GH Pedigree")
     sp.add_argument("input")
-    sp.add_argument("--level", choices=["syntactic", "structural", "reference", "ontology", "lint"],
-                    default="lint")
-    sp.add_argument("--online", action="store_true")
     sp.add_argument("--format", choices=["human", "json"], default="human")
+    sp.add_argument("--level", dest="old_level", default=None, help=argparse.SUPPRESS)
+    sp.add_argument("--online", dest="old_online", action="store_true", help=argparse.SUPPRESS)
     common(sp); sp.set_defaults(func=cmd_validate)
 
     sp = sub.add_parser("stats", help="counts and term frequency")
@@ -355,25 +395,30 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--keyfile", default=None, help="write the old->new id crosswalk here")
     common(sp, writes=True); sp.set_defaults(func=cmd_deidentify)
 
-    sp = sub.add_parser("convert", help="dialect/format conversion")
+    sp = sub.add_parser("convert", help="Family <-> GA4GH Pedigree, or to PED, TSV, YAML, JSONL")
     sp.add_argument("input")
-    sp.add_argument("--to", choices=["json", "yaml", "jsonl", "ped", "tsv"], default="json")
+    sp.add_argument("--to", choices=["pedigree", "family", "json", "yaml", "jsonl", "ped", "tsv"], default="json")
+    sp.add_argument("--proband", default=None, help="with --to family: the subject id to make the proband")
     common(sp, writes=True); sp.set_defaults(func=cmd_convert)
+
+    sp = sub.add_parser("upgrade", help="rewrite a file from an older tool (or any file) in the standard form")
+    sp.add_argument("input")
+    sp.add_argument("--created-by", default="phenotk upgrade", help="metaData.createdBy for any metaData added")
+    common(sp, writes=True); sp.set_defaults(func=cmd_upgrade)
 
     sp = sub.add_parser("sort", help="canonical ordering")
     sp.add_argument("input"); common(sp, writes=True); sp.set_defaults(func=cmd_sort)
 
     sp = sub.add_parser("diff", help="compare two documents")
     sp.add_argument("a"); sp.add_argument("b")
-    sp.add_argument("--strict", action="store_true", help="do not ignore order/provenance/dialect")
+    sp.add_argument("--strict", action="store_true", help="do not ignore order and provenance")
     sp.add_argument("--format", choices=["human", "json"], default="human")
     common(sp); sp.set_defaults(func=cmd_diff)
 
     sp = sub.add_parser("split", help="explode a family into per-individual files")
     sp.add_argument("input"); sp.add_argument("--out-dir", required=True)
     sp.add_argument("--affected-only", action="store_true")
-    sp.add_argument("--to-dialect", choices=Dialect.ALL, default=Dialect.GA4GH)
-    sp.add_argument("--dialect", choices=Dialect.ALL, default=None)
+    old_dialect_options(sp)
     sp.set_defaults(func=cmd_split)
 
     sp = sub.add_parser("merge", help="combine documents into a cohort/family")
@@ -423,10 +468,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    _note_old_options(args)
     try:
         return args.func(args)
     except (RuntimeError, ValueError, FileNotFoundError) as e:
-        sys.stderr.write("error: {}\n".format(e))
+        sys.stderr.write("phenotk: {}\n".format(e))
         return 2
 
 

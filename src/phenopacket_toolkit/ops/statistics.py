@@ -20,6 +20,7 @@ class StatsResult:
     n_excluded: int = 0
     n_unnormalised: int = 0
     term_counts: Counter = field(default_factory=Counter)
+    relationships: Counter = field(default_factory=Counter)
 
     def term_frequency(self, top: int = 10) -> List[Tuple[str, int]]:
         return self.term_counts.most_common(top)
@@ -34,6 +35,7 @@ class StatsResult:
             "excluded_features": self.n_excluded,
             "unnormalised_terms": self.n_unnormalised,
             "top_terms": self.term_frequency(),
+            "relationships": dict(self.relationships),
         }
 
     def to_json(self) -> str:
@@ -50,6 +52,13 @@ def stats(doc: Document) -> StatsResult:
             sex_c[p.sex] += 1
             aff_c[p.affected_status] += 1
         res.n_individuals = len(ped.persons)
+    else:
+        aff = doc.affected_status()
+        for pp in doc.phenopackets():
+            sex_c[pp.subject.sex or "UNKNOWN_SEX"] += 1
+            aff_c[aff.get(pp.subject.id, "MISSING")] += 1
+    for r in doc.relationships():
+        res.relationships[r.relation_label or r.relation_id] += 1
 
     seen_subjects = 0
     for pp in doc.phenopackets():
@@ -84,6 +93,10 @@ def render_stats(res: StatsResult, *, fmt: str = "human") -> str:
         "diseases:           {}".format(res.n_diseases),
         "unnormalised terms: {}".format(res.n_unnormalised),
     ]
+    if res.relationships:
+        lines.append("relationships:")
+        for label, n in res.relationships.most_common():
+            lines.append("  {:>3}  {}".format(n, label))
     top = res.term_frequency()
     if top:
         lines.append("top terms:")

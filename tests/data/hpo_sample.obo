@@ -1,0 +1,71 @@
+format-version: 1.2
+ontology: hp-sample
+remark: ILLUSTRATIVE OFFLINE SUBSET ONLY. This is a tiny hand-built fixture so the
+remark: tool can run and be demonstrated without a network connection. The HP ids
+remark: below were verified against HPO browsers, but this is NOT the ontology --
+remark: for real work point the tool at the full HPO (online OLS, or --hpo-file with
+remark: the official hp.obo / hp.json from https://hpo.jax.org / purl.obolibrary.org).
+
+[Term]
+id: HP:0000001
+name: All
+
+[Term]
+id: HP:0000118
+name: Phenotypic abnormality
+def: "A phenotypic abnormality." []
+synonym: "Organ abnormality" EXACT []
+is_a: HP:0000001 ! All
+
+[Term]
+id: HP:0000819
+name: Diabetes mellitus
+def: "A group of metabolic diseases characterized by hyperglycemia resulting from defects in insulin secretion, insulin action, or both." []
+synonym: "Diabetes" EXACT []
+synonym: "DM" EXACT []
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0001657
+name: Prolonged QT interval
+def: "Increased time between the start of the Q wave and the end of the T wave as measured by the electrocardiogram (EKG)." []
+synonym: "Long QT interval" EXACT []
+synonym: "Long QT" RELATED []
+synonym: "QT prolongation" EXACT []
+synonym: "Prolonged QTc" RELATED []
+synonym: "Prolongation of the QT interval" EXACT []
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0001250
+name: Seizure
+def: "A seizure is an intermittent abnormality of nervous system physiology characterized by a transient occurrence of signs and/or symptoms due to abnormal excessive or synchronous neuronal activity in the brain." []
+synonym: "Seizures" EXACT []
+synonym: "Epileptic seizure" RELATED []
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0001263
+name: Global developmental delay
+def: "A delay in the achievement of motor or mental milestones in the domains of development of a child." []
+synonym: "Developmental delay" EXACT []
+synonym: "Delayed development" EXACT []
+synonym: "Psychomotor developmental delay" RELATED []
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0000252
+name: Microcephaly
+def: "Occipitofrontal (head) circumference more than 2 standard deviations below the mean for age and gender." []
+synonym: "Small head" EXACT []
+synonym: "Abnormally small skull" RELATED []
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0004322
+name: Short stature
+def: "A height below that which is expected according to age and gender norms." []
+synonym: "Decreased body height" EXACT []
+synonym: "Small stature" EXACT []
+synonym: "Height less than 3rd percentile" RELATED []
+is_a: HP:0000118 ! Phenotypic abnormality

@@ -15,7 +15,7 @@ class Severity:
 
 @dataclass
 class Finding:
-    level: str        # syntactic | structural | reference | ontology | lint
+    level: str        # "standard" for the checks of pedigree_ga4gh.validate
     severity: str     # Severity.*
     code: str         # short stable identifier, e.g. "missing-metadata"
     message: str

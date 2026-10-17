@@ -53,27 +53,41 @@ def filter_document(
             return False
         return True
 
-    aff_by_id = {}
+    aff_by_id = out.affected_status()
     ped = out.pedigree()
-    if ped is not None:
-        aff_by_id = {p.individual_id: p.affected_status for p in ped.persons}
+    before = {pp.subject.id for pp in out.phenopackets()}
 
     raw = out.raw
     if out.kind == "family":
-        # proband
         prob = raw.get("proband")
         if isinstance(prob, dict):
             sid = prob.get("subject", {}).get("id", "")
             if not keep_packet("proband", prob.get("subject", {}), aff_by_id.get(sid, "")):
-                raw.pop("proband", None)
-        # relatives
-        kept_rel = []
-        for rel in raw.get("relatives", []) or []:
-            sid = rel.get("subject", {}).get("id", "")
-            if keep_packet("relative", rel.get("subject", {}), aff_by_id.get(sid, "")):
-                kept_rel.append(rel)
+                # a Family must have its proband
+                raise ValueError("these filters leave out the proband ({}), and a Phenopackets Family must have "
+                                 "one. Filter the GA4GH Pedigree instead, or split the Family into a Phenopacket "
+                                 "for each person (phenotk split)".format(sid or "?"))
         if "relatives" in raw:
-            raw["relatives"] = kept_rel
+            raw["relatives"] = [rel for rel in raw.get("relatives", []) or []
+                                if keep_packet("relative", rel.get("subject", {}),
+                                               aff_by_id.get(rel.get("subject", {}).get("id", ""), ""))]
+    elif out.kind in ("pedigree", "cohort"):
+        key = "individuals" if out.kind == "pedigree" else "members"
+        index = set(raw.get("indexPatients") or [])
+        kept = []
+        for m in raw.get(key, []) or []:
+            sid = (m.get("subject") or {}).get("id", "")
+            role = "proband" if sid in index else "relative"
+            if keep_packet(role, m.get("subject", {}), aff_by_id.get(sid, "")):
+                kept.append(m)
+        raw[key] = kept
+        if out.kind == "pedigree":
+            ids = {(m.get("subject") or {}).get("id") for m in kept}
+            if "relationships" in raw:
+                raw["relationships"] = [r for r in raw["relationships"]
+                                        if r.get("individualId") in ids and r.get("relativeId") in ids]
+            if "indexPatients" in raw:
+                raw["indexPatients"] = [i for i in raw["indexPatients"] if i in ids]
 
     # --- term-level pruning ---
     if wanted is not None or observed_only or excluded_only:
@@ -81,12 +95,18 @@ def filter_document(
             _filter_terms(pp.raw, wanted, invert, observed_only, excluded_only)
 
     # --- optional pedigree pruning ---
+    # A Family's pedigree loses the people whose Phenopackets the filters left out, and any line to them, so that
+    # it stays valid. (The people of the pedigree who never had a Phenopacket – relatives with nothing to record –
+    # are not left out by a filter, and stay.) A GA4GH Pedigree's relationships are pruned above, always.
     if prune_pedigree and ped is not None:
-        surviving = {pp.subject.id for pp in out.phenopackets()}
+        removed = before - {pp.subject.id for pp in out.phenopackets()}
         persons = raw.get("pedigree", {}).get("persons", [])
-        raw["pedigree"]["persons"] = [
-            p for p in persons if p.get("individualId") in surviving
-        ]
+        kept = [p for p in persons if p.get("individualId") not in removed]
+        for p in kept:
+            for key in ("paternalId", "maternalId"):
+                if p.get(key) in removed:
+                    p[key] = "0"
+        raw["pedigree"]["persons"] = kept
 
     return out
 

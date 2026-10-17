@@ -1,0 +1,101 @@
+{
+  "id": "FAM1",
+  "proband": {
+    "id": "FAM1-i3",
+    "subject": {
+      "id": "i3",
+      "vitalStatus": {
+        "status": "ALIVE"
+      },
+      "sex": "FEMALE"
+    },
+    "phenotypicFeatures": [
+      {
+        "type": {
+          "id": "",
+          "label": "diabetes"
+        }
+      }
+    ],
+    "metaData": {
+      "created": "2026-10-17T12:00:00Z",
+      "createdBy": "phenopacket-toolkit tests",
+      "phenopacketSchemaVersion": "2.0"
+    }
+  },
+  "relatives": [
+    {
+      "id": "FAM1-i5",
+      "subject": {
+        "id": "i5",
+        "vitalStatus": {
+          "status": "ALIVE"
+        },
+        "sex": "MALE"
+      },
+      "phenotypicFeatures": [
+        {
+          "type": {
+            "id": "",
+            "label": "sickle cell anemia"
+          }
+        }
+      ],
+      "metaData": {
+        "created": "2026-10-17T12:00:00Z",
+        "createdBy": "phenopacket-toolkit tests",
+        "phenopacketSchemaVersion": "2.0"
+      }
+    }
+  ],
+  "consanguinousParents": false,
+  "pedigree": {
+    "persons": [
+      {
+        "familyId": "FAM1",
+        "individualId": "i1",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "i2",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "FEMALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "i3",
+        "paternalId": "i1",
+        "maternalId": "i2",
+        "sex": "FEMALE",
+        "affectedStatus": "AFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "i4",
+        "paternalId": "0",
+        "maternalId": "0",
+        "sex": "MALE",
+        "affectedStatus": "UNAFFECTED"
+      },
+      {
+        "familyId": "FAM1",
+        "individualId": "i5",
+        "paternalId": "i4",
+        "maternalId": "i3",
+        "sex": "MALE",
+        "affectedStatus": "AFFECTED"
+      }
+    ]
+  },
+  "metaData": {
+    "created": "2026-10-17T12:00:00Z",
+    "createdBy": "phenopacket-toolkit tests",
+    "phenopacketSchemaVersion": "2.0"
+  }
+}

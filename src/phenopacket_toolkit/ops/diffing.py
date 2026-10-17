@@ -8,7 +8,7 @@ from typing import List
 from ..model.document import Document
 from .sort import sort_document
 
-_PROVENANCE_KEYS = {"created", "createdBy", "_ppktk_inherited_metadata"}
+_PROVENANCE_KEYS = {"created", "createdBy"}
 
 
 def _strip_provenance(obj):
@@ -30,7 +30,7 @@ def _canonical(doc: Document, ignore) -> dict:
     return raw
 
 
-def diff(a: Document, b: Document, *, ignore=("order", "provenance", "dialect")) -> List[str]:
+def diff(a: Document, b: Document, *, ignore=("order", "provenance")) -> List[str]:
     """Return a list of difference descriptions ('' -> identical)."""
     ignore = set(ignore)
     ra = _canonical(a, ignore)
