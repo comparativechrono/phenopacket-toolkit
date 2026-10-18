@@ -1,0 +1,24 @@
+format-version: 1.2
+ontology: hp-mini
+remark: A hand-made hierarchy for the tests, NOT the ontology. The ids and names
+remark: are the HPO's; the hierarchy is simplified (the terms in between are left
+remark: out).
+
+[Term]
+id: HP:0000118
+name: Phenotypic abnormality
+
+[Term]
+id: HP:0001626
+name: Abnormality of the cardiovascular system
+is_a: HP:0000118 ! Phenotypic abnormality
+
+[Term]
+id: HP:0001657
+name: Prolonged QT interval
+is_a: HP:0001626 ! Abnormality of the cardiovascular system
+
+[Term]
+id: HP:0000479
+name: Abnormal retinal morphology
+is_a: HP:0000118 ! Phenotypic abnormality
